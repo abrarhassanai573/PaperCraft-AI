@@ -473,59 +473,251 @@ def smart_extractor_ui():
         except Exception as e: st.error(str(e))
 
 
-# ---------- UI ----------
+
+# ---------- Extra PDF utilities ----------
+def scan_to_pdf_ui():
+    files = st.file_uploader("Upload scanned images", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="scan_files")
+    if not files:
+        return
+    if st.button("Create PDF", key="scan_btn"):
+        try:
+            from PIL import Image
+            images = [Image.open(f).convert("RGB") for f in files]
+            out = io.BytesIO()
+            images[0].save(out, format="PDF", save_all=True, append_images=images[1:])
+            _download_pdf(out.getvalue(), "scanned_document.pdf")
+        except Exception as e:
+            st.error(f"Scan to PDF failed: {e}")
+
+
+def sign_pdf_ui():
+    f = st.file_uploader("Upload PDF", type="pdf", key="sign_file")
+    signature = st.text_input("Signature text", "Signed by PaperCraft AI", key="signature_text")
+    if not f:
+        return
+    if st.button("Sign PDF", key="sign_btn"):
+        try:
+            from reportlab.pdfgen import canvas
+            reader = PdfReader(f); writer = PdfWriter()
+            for page in reader.pages:
+                box = page.mediabox; w, h = float(box.width), float(box.height)
+                b = io.BytesIO(); c = canvas.Canvas(b, pagesize=(w, h))
+                c.setFont("Helvetica-Bold", 11); c.drawString(36, 30, signature); c.save(); b.seek(0)
+                page.merge_page(PdfReader(b).pages[0]); writer.add_page(page)
+            out = io.BytesIO(); writer.write(out)
+            _download_pdf(out.getvalue(), "signed.pdf")
+        except Exception as e:
+            st.error(f"Signing failed: {e}")
+
+
+def crop_pdf_ui():
+    f = st.file_uploader("Upload PDF", type="pdf", key="crop_file")
+    margin = st.slider("Crop margin (points)", 0, 100, 20, key="crop_margin")
+    if not f:
+        return
+    if st.button("Crop PDF", key="crop_btn"):
+        try:
+            reader = PdfReader(f); writer = PdfWriter()
+            for page in reader.pages:
+                box = page.mediabox
+                page.cropbox.lower_left = (float(box.left) + margin, float(box.bottom) + margin)
+                page.cropbox.upper_right = (float(box.right) - margin, float(box.top) - margin)
+                writer.add_page(page)
+            out = io.BytesIO(); writer.write(out)
+            _download_pdf(out.getvalue(), "cropped.pdf")
+        except Exception as e:
+            st.error(f"Crop failed: {e}")
+
+
+def redact_pdf_ui():
+    f = st.file_uploader("Upload PDF", type="pdf", key="redact_file")
+    pages = st.text_input("Pages to redact", "1", key="redact_pages")
+    if not f:
+        return
+    if st.button("Redact selected pages", key="redact_btn"):
+        try:
+            from reportlab.pdfgen import canvas
+            reader = PdfReader(f); writer = PdfWriter(); selected = set(_parse_ranges(pages, len(reader.pages)))
+            for idx, page in enumerate(reader.pages):
+                if idx in selected:
+                    box = page.mediabox; w, h = float(box.width), float(box.height)
+                    b = io.BytesIO(); c = canvas.Canvas(b, pagesize=(w, h)); c.setFillColorRGB(0,0,0); c.rect(0,0,w,h,fill=1,stroke=0); c.save(); b.seek(0)
+                    page.merge_page(PdfReader(b).pages[0])
+                writer.add_page(page)
+            out = io.BytesIO(); writer.write(out)
+            _download_pdf(out.getvalue(), "redacted.pdf")
+            st.warning("This simple redaction masks the selected pages visually. For legal redaction, verify that hidden PDF objects/text are also removed.")
+        except Exception as e:
+            st.error(f"Redaction failed: {e}")
+
+
+def compare_pdf_ui():
+    a = st.file_uploader("Original PDF", type="pdf", key="compare_a")
+    b = st.file_uploader("Second PDF", type="pdf", key="compare_b")
+    if not (a and b):
+        return
+    if st.button("Compare PDFs", key="compare_btn"):
+        try:
+            ta = _text_from_pdf(a.getvalue(), 30000).strip()
+            tb = _text_from_pdf(b.getvalue(), 30000).strip()
+            import difflib
+            diff = list(difflib.unified_diff(ta.splitlines(), tb.splitlines(), fromfile="Original", tofile="Second", lineterm=""))
+            st.text_area("Comparison", "\n".join(diff) if diff else "No text differences detected.", height=420)
+        except Exception as e:
+            st.error(f"Comparison failed: {e}")
+
+
+def translate_pdf_ui():
+    f = _ai_upload("ai_translate_file")
+    language = st.selectbox("Translate to", ["English", "Urdu", "Roman Urdu", "Arabic", "French", "Spanish"], key="translate_language")
+    if not f:
+        return
+    if st.button("Translate with AI", key="translate_btn"):
+        text = _text_from_pdf(f.getvalue())
+        if not text.strip():
+            st.warning("No selectable text found in this PDF.")
+            return
+        try:
+            result, provider = _generate_ai(f"Translate the document below into {language}. Preserve meaning, headings and lists. Do not invent content.\n\n{text}")
+            st.caption(f"Generated with {provider}"); st.markdown(result)
+            st.download_button("Download translation", result, file_name="translated_document.txt", mime="text/plain")
+        except Exception as e:
+            st.error(str(e))
+
+
+def history_add(tool_name, filename=""):
+    if "history" not in st.session_state:
+        st.session_state.history = []
+    from datetime import datetime
+    st.session_state.history.insert(0, {"tool": tool_name, "file": filename or "No file", "time": datetime.now().strftime("%d %b %Y, %I:%M %p")})
+    st.session_state.history = st.session_state.history[:20]
+
+
+# ---------- I Love PDF-inspired PaperCraft UI ----------
 st.markdown("""
 <style>
-:root { --primary:#4F46E5; --primary-dark:#4338CA; --accent:#14B8A6; --bg:#F8FAFC; --card-bg:#FFFFFF; --text:#1E293B; --muted:#64748B; }
-.stApp { background:var(--bg); }
+:root { --red:#e5322d; --red-dark:#c9211d; --ink:#242424; --muted:#777; --bg:#f7f7f7; --card:#fff; --line:#e9e9e9; }
+.stApp { background:var(--bg); color:var(--ink); }
 #MainMenu, footer, header { visibility:hidden; }
-.pc-navbar { display:flex; align-items:center; justify-content:space-between; padding:14px 6px; margin-bottom:8px; border-bottom:1px solid #E2E8F0; }
-.pc-logo { font-size:1.5rem; font-weight:800; color:var(--text); }
-.pc-logo span { color:var(--primary); }
-.pc-tagline { color:var(--muted); font-size:.9rem; }
-.pc-section-title { font-size:1.05rem; font-weight:700; color:var(--text); margin:22px 0 10px 2px; display:flex; align-items:center; gap:8px; }
-.pc-badge { background:var(--accent); color:white; font-size:.65rem; padding:2px 8px; border-radius:999px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
-div[data-testid="stButton"] > button { width:100%; text-align:left; background:var(--card-bg); border:1px solid #E2E8F0; border-radius:12px; padding:16px 14px; font-weight:600; color:var(--text); box-shadow:0 1px 2px rgba(0,0,0,.03); transition:all .15s ease; }
-div[data-testid="stButton"] > button:hover { border-color:var(--primary); box-shadow:0 4px 12px rgba(79,70,229,.15); color:var(--primary); transform:translateY(-1px); }
-.pc-back button { width:auto !important; background:transparent !important; border:none !important; color:var(--primary) !important; font-weight:700 !important; padding:4px 0 !important; box-shadow:none !important; }
-.pc-back button:hover { text-decoration:underline; transform:none; }
-h1 { color:var(--text) !important; }
-.stDownloadButton button { background:var(--primary) !important; color:white !important; border:none !important; border-radius:8px !important; font-weight:600 !important; }
-.stDownloadButton button:hover { background:var(--primary-dark) !important; }
+.block-container { max-width:1260px; padding-top:0.7rem; padding-bottom:3rem; }
+.pc-nav { background:#fff; border-bottom:1px solid var(--line); padding:13px 0; margin-bottom:25px; }
+.pc-brand { font-size:25px; font-weight:900; letter-spacing:-1.3px; color:#242424; }
+.pc-brand .craft { color:var(--red); }
+.pc-brand small { display:block; font-size:9px; letter-spacing:.8px; color:#999; font-weight:600; margin-top:-2px; }
+.pc-navitem { font-size:12px; font-weight:800; color:#3b3b3b; text-transform:uppercase; letter-spacing:.2px; }
+.pc-login { font-size:12px; font-weight:700; color:#444; }
+.pc-sign { background:var(--red); color:#fff; padding:8px 13px; border-radius:5px; font-size:12px; font-weight:800; }
+.hero { text-align:center; padding:12px 0 10px; }
+.hero h1 { font-size:38px; line-height:1.15; letter-spacing:-1.2px; margin:0; color:#242424; font-weight:800; }
+.hero p { max-width:780px; margin:10px auto 18px; color:#777; font-size:15px; line-height:1.55; }
+.pills { display:flex; justify-content:center; gap:9px; flex-wrap:wrap; margin-bottom:18px; }
+.pill { border:1px solid #ddd; background:#fff; color:#666; border-radius:18px; padding:7px 14px; font-size:12px; font-weight:700; }
+.pill.active { background:#242424; color:#fff; border-color:#242424; }
+.section { margin-top:20px; }
+.section h3 { font-size:17px; margin:0 0 11px; color:#333; }
+.tool-card { background:#fff; border:1px solid #e5e5e5; border-radius:10px; padding:18px 16px 14px; min-height:125px; box-shadow:0 1px 2px rgba(0,0,0,.025); }
+.tool-icon { font-size:26px; margin-bottom:10px; }
+.tool-title { font-size:15px; font-weight:800; color:#333; margin-bottom:5px; }
+.tool-desc { font-size:11px; color:#888; line-height:1.45; min-height:32px; }
+div[data-testid="stButton"] > button { border:1px solid #e2e2e2; background:#fff; color:#333; border-radius:7px; font-weight:750; min-height:38px; }
+div[data-testid="stButton"] > button:hover { border-color:var(--red); color:var(--red); background:#fff; }
+.stDownloadButton button { background:var(--red) !important; border-color:var(--red) !important; color:#fff !important; border-radius:6px !important; }
+.stDownloadButton button:hover { background:var(--red-dark) !important; }
+.pc-footer { text-align:center; color:#999; font-size:11px; padding:25px 0; border-top:1px solid #e7e7e7; margin-top:35px; }
+.history-card { background:#fff; border:1px solid #e5e5e5; border-radius:8px; padding:12px 14px; margin-bottom:8px; }
 </style>
 """, unsafe_allow_html=True)
 
 TOOLS = {
-    "Organize PDF": {"icon":"🗂️", "items": {"Merge PDF":("📑",merge_pdf_ui), "Split PDF":("✂️",split_pdf_ui), "Remove Pages":("🗑️",remove_pages_ui), "Extract Pages":("📤",extract_pages_ui), "Reorder Pages":("🔀",reorder_pages_ui)}},
-    "Optimize PDF": {"icon":"⚡", "items": {"Compress PDF":("📉",compress_pdf_ui), "Repair PDF":("🛠️",repair_pdf_ui), "OCR PDF":("🔍",ocr_pdf_ui)}},
-    "Convert PDF": {"icon":"🔄", "items": {"PDF to JPG":("🖼️",pdf_to_jpg_ui), "JPG to PDF":("📷",jpg_to_pdf_ui), "PDF to Word":("📝",pdf_to_word_ui), "Word to PDF":("📄",word_to_pdf_ui), "Excel to PDF":("📊",excel_to_pdf_ui), "PowerPoint to PDF":("📽️",ppt_to_pdf_ui), "PDF to Excel":("📈",pdf_to_excel_ui)}},
-    "Edit PDF": {"icon":"✏️", "items": {"Rotate PDF":("🔁",rotate_pdf_ui), "Add Watermark":("💧",watermark_ui), "Page Numbers":("🔢",page_numbers_ui)}},
-    "PDF Security": {"icon":"🔒", "items": {"Protect PDF":("🔐",protect_pdf_ui), "Unlock PDF":("🔓",unlock_pdf_ui)}},
-    "AI Intelligence": {"icon":"🧠", "badge":"Unique", "items": {"AI Summarizer":("🧠",summarizer_ui), "PDF to Markdown":("📋",pdf_to_markdown_ui), "Ask Your PDF":("💬",chat_with_pdf_ui), "Smart Data Extractor":("🎯",smart_extractor_ui)}},
+    "Organize PDF": {"icon":"🗂️", "items": {
+        "Merge PDF":("📑","Combine multiple PDFs into one file.",merge_pdf_ui),
+        "Split PDF":("✂️","Extract selected pages from a PDF.",split_pdf_ui),
+        "Remove Pages":("✕","Remove unwanted pages.",remove_pages_ui),
+        "Extract Pages":("↗","Create a new PDF from selected pages.",extract_pages_ui),
+        "Reorder Pages":("↕","Change the order of PDF pages.",reorder_pages_ui),
+        "Scan to PDF":("▣","Turn images into one PDF.",scan_to_pdf_ui)}},
+    "Optimize PDF": {"icon":"⚡", "items": {
+        "Compress PDF":("▣","Reduce PDF file size.",compress_pdf_ui),
+        "Repair PDF":("🔧","Rewrite a damaged PDF when possible.",repair_pdf_ui),
+        "OCR PDF":("⌕","Make scanned pages searchable.",ocr_pdf_ui)}},
+    "Convert PDF": {"icon":"↔", "items": {
+        "PDF to JPG":("▧","Convert PDF pages to images.",pdf_to_jpg_ui),
+        "JPG to PDF":("▧","Create PDF from images.",jpg_to_pdf_ui),
+        "PDF to Word":("W","Convert PDF to editable Word.",pdf_to_word_ui),
+        "Word to PDF":("W","Convert Word documents to PDF.",word_to_pdf_ui),
+        "Excel to PDF":("X","Convert Excel workbooks to PDF.",excel_to_pdf_ui),
+        "PowerPoint to PDF":("P","Convert presentations to PDF.",ppt_to_pdf_ui),
+        "PDF to Excel":("X","Extract PDF tables to Excel.",pdf_to_excel_ui)}},
+    "Edit PDF": {"icon":"✎", "items": {
+        "Rotate PDF":("↻","Rotate PDF pages.",rotate_pdf_ui),
+        "Add Watermark":("◆","Add a watermark to pages.",watermark_ui),
+        "Page Numbers":("#","Add page numbers.",page_numbers_ui),
+        "Crop PDF":("□","Crop page margins.",crop_pdf_ui)}},
+    "PDF Security": {"icon":"▣", "items": {
+        "Protect PDF":("🔒","Encrypt a PDF with a password.",protect_pdf_ui),
+        "Unlock PDF":("🔓","Remove a known PDF password.",unlock_pdf_ui),
+        "Sign PDF":("✓","Add a simple text signature.",sign_pdf_ui),
+        "Redact PDF":("■","Mask selected PDF pages.",redact_pdf_ui),
+        "Compare PDF":("≠","Compare extracted text between PDFs.",compare_pdf_ui)}},
+    "PDF Intelligence": {"icon":"✦", "badge":"AI", "items": {
+        "AI Summarizer":("✦","Summarize a document with AI.",summarizer_ui),
+        "Translate PDF":("文","Translate PDF text with AI.",translate_pdf_ui),
+        "PDF to Markdown":("M","Convert a document to Markdown.",pdf_to_markdown_ui),
+        "Ask Your PDF":("?","Chat with your uploaded PDF.",chat_with_pdf_ui),
+        "Smart Data Extractor":("⌘","Extract structured fields with AI.",smart_extractor_ui)}}
 }
 
-if "tool" not in st.session_state:
-    st.session_state.tool = None
+if "tool" not in st.session_state: st.session_state.tool = None
+if "history" not in st.session_state: st.session_state.history = []
 
-st.markdown('''<div class="pc-navbar"><div><div class="pc-logo">Paper<span>Craft</span> AI</div><div class="pc-tagline">Free, professional PDF tools — with AI superpowers</div></div></div>''', unsafe_allow_html=True)
+# Header / navigation
+nav1, nav2, nav3, nav4, nav5, nav6, nav7 = st.columns([1.65,1.0,1.0,1.15,1.25,0.65,0.7])
+with nav1:
+    st.markdown('<div class="pc-brand">Paper<span class="craft">Craft</span> AI<small>FREE PDF TOOLS + AI</small></div>', unsafe_allow_html=True)
+for col, label, key in [(nav2,"MERGE PDF","Merge PDF"),(nav3,"SPLIT PDF","Split PDF"),(nav4,"COMPRESS PDF","Compress PDF"),(nav5,"CONVERT PDF","PDF to JPG")]:
+    with col:
+        if st.button(label, key="nav_"+key.replace(" ","_")):
+            for cat in TOOLS.values():
+                if key in cat["items"]:
+                    st.session_state.tool=(key,cat["items"][key][2]); break
+            st.rerun()
+with nav6:
+    if st.button("HISTORY", key="nav_history"): st.session_state.tool=("History",None); st.rerun()
+with nav7:
+    st.markdown('<div class="pc-login">Login<br><span class="pc-sign">Sign up</span></div>', unsafe_allow_html=True)
 
 if st.session_state.tool is None:
+    st.markdown('<div class="hero"><h1>Every PDF tool you need in one place</h1><p>PaperCraft AI gives you simple, fast PDF tools at your fingertips. Merge, split, compress, convert, edit, secure and use AI with your documents.</p></div>', unsafe_allow_html=True)
+    pill_html='<div class="pills">'
+    for cat in TOOLS:
+        pill_html += f'<span class="pill">{TOOLS[cat]["icon"]} {cat}</span>'
+    pill_html += '</div>'
+    st.markdown(pill_html, unsafe_allow_html=True)
+
     for category, data in TOOLS.items():
-        badge = f'<span class="pc-badge">{data["badge"]}</span>' if "badge" in data else ""
-        st.markdown(f'<div class="pc-section-title">{data["icon"]} {category} {badge}</div>', unsafe_allow_html=True)
-        items = list(data["items"].items()); cols = st.columns(4)
-        for i, (name, (icon, handler)) in enumerate(items):
-            with cols[i % 4]:
-                if st.button(f"{icon}  {name}", key=f"card_{category}_{name}"):
-                    st.session_state.tool = (name, handler); st.rerun()
+        badge = f' <span style="background:#242424;color:#fff;border-radius:10px;padding:3px 8px;font-size:9px;">{data["badge"]}</span>' if "badge" in data else ""
+        st.markdown(f'<div class="section"><h3>{data["icon"]} {category}{badge}</h3></div>', unsafe_allow_html=True)
+        items=list(data["items"].items())
+        cols=st.columns(5)
+        for i,(name,(icon,desc,handler)) in enumerate(items):
+            with cols[i%5]:
+                st.markdown(f'<div class="tool-card"><div class="tool-icon">{icon}</div><div class="tool-title">{name}</div><div class="tool-desc">{desc}</div></div>',unsafe_allow_html=True)
+                if st.button("Open tool", key="open_"+category+"_"+name):
+                    st.session_state.tool=(name,handler); history_add(name); st.rerun()
 else:
     name, handler = st.session_state.tool
-    st.markdown('<div class="pc-back">', unsafe_allow_html=True)
-    if st.button("← Back to all tools"):
-        st.session_state.tool = None; st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.title(name)
-    handler()
+    if st.button("← Back to all tools", key="back_tools"): st.session_state.tool=None; st.rerun()
+    if name == "History":
+        st.title("History")
+        if not st.session_state.history:
+            st.info("No tools have been used in this session yet.")
+        else:
+            if st.button("Clear history", key="clear_history"):
+                st.session_state.history=[]; st.rerun()
+            for item in st.session_state.history:
+                st.markdown(f'<div class="history-card"><b>{item["tool"]}</b><br><span style="color:#888;font-size:12px;">{item["file"]} · {item["time"]}</span></div>',unsafe_allow_html=True)
+    else:
+        st.title(name)
+        handler()
 
-st.markdown("---")
-st.caption("PaperCraft AI · 100% free · open source · GitHub")
+st.markdown('<div class="pc-footer">PaperCraft AI · Free PDF tools · AI document intelligence · Built with Streamlit</div>', unsafe_allow_html=True)
