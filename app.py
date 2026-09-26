@@ -374,71 +374,108 @@ def _secret(name, default=None):
     except Exception:
         return os.getenv(name, default)
 
+def ai_generate(prompt):
+    """
+    PaperCraft AI - Gemini + Groq fallback
+    Uses current model names from Streamlit Secrets when provided.
+    """
 
-def _generate_ai(prompt):
+    gemini_key = get_secret("GEMINI_API_KEY") or get_secret("GOOGLE_API_KEY")
+    groq_key = get_secret("GROQ_API_KEY")
+
     errors = []
-    try:
-        key = _secret("GEMINI_API_KEY")
-        if not key: raise RuntimeError("GEMINI_API_KEY is not configured.")
-        from google import genai
-        client = genai.Client(api_key=key)
-        model = _secret("GEMINI_MODEL", "gemini-2.5-flash")
-        response = client.models.generate_content(model=model, contents=prompt)
-        return response.text, "Gemini"
-    except Exception as e:
-        errors.append(f"Gemini: {e}")
-    try:
-        key = _secret("GROQ_API_KEY")
-        if not key: raise RuntimeError("GROQ_API_KEY is not configured.")
-        from groq import Groq
-        client = Groq(api_key=key)
-        model = _secret("GROQ_MODEL", "llama-3.3-70b-versatile")
-        response = client.chat.completions.create(model=model, messages=[{"role": "user", "content": prompt}], temperature=0.2)
-        return response.choices[0].message.content, "Groq"
-    except Exception as e:
-        errors.append(f"Groq: {e}")
-    raise RuntimeError("No AI provider succeeded. " + " | ".join(errors))
 
-
-def _text_from_pdf(data, max_chars=50000):
-    reader = PdfReader(io.BytesIO(data)); chunks = []; total = 0
-    for i, p in enumerate(reader.pages):
-        try: txt = p.extract_text() or ""
-        except Exception: txt = ""
-        if txt.strip():
-            chunk = f"\n--- Page {i+1} ---\n{txt}"
-            chunks.append(chunk); total += len(chunk)
-        if total >= max_chars: break
-    return "".join(chunks)[:max_chars]
-
-
-def _ai_upload(key):
-    return st.file_uploader("Upload PDF", type="pdf", key=key)
-
-
-def summarizer_ui():
-    f = _ai_upload("ai_summary_file")
-    if not f: return
-    if st.button("Summarize with AI", key="summary_btn"):
-        text = _text_from_pdf(f.getvalue())
-        if not text.strip(): st.warning("No selectable text found in this PDF."); return
+    # =========================================================
+    # GEMINI
+    # =========================================================
+    if gemini_key:
         try:
-            result, provider = _generate_ai("Summarize this PDF clearly. Give a short overview, key points, important facts, and action items if present.\n\n" + text)
-            st.caption(f"Generated with {provider}"); st.markdown(result)
-        except Exception as e: st.error(str(e))
+            from google import genai
 
+            client = genai.Client(api_key=gemini_key)
 
-def pdf_to_markdown_ui():
-    f = _ai_upload("ai_md_file")
-    if not f: return
-    if st.button("Convert to Markdown", key="md_btn"):
-        text = _text_from_pdf(f.getvalue())
-        if not text.strip(): st.warning("No selectable text found."); return
+            # Use the model configured in Streamlit Secrets.
+            # Default is the model mentioned by your current API error.
+            model = get_secret("GEMINI_MODEL") or "gemini-3.8-flash"
+
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt
+            )
+
+            result = getattr(response, "text", None)
+
+            if result:
+                return result.strip(), "Gemini"
+
+            errors.append("Gemini returned an empty response.")
+
+        except Exception as e:
+            errors.append(
+                f"Gemini: {type(e).__name__}: {str(e)[:500]}"
+            )
+
+    # =========================================================
+    # GROQ
+    # =========================================================
+    if groq_key:
         try:
-            result, provider = _generate_ai("Convert the following document into clean Markdown. Preserve headings, lists, tables where possible, and do not invent content.\n\n" + text)
-            st.caption(f"Generated with {provider}"); st.code(result, language="markdown")
-            st.download_button("Download Markdown", result, file_name="document.md", mime="text/markdown")
-        except Exception as e: st.error(str(e))
+            from groq import Groq
+
+            client = Groq(api_key=groq_key)
+
+            # Put your currently available Groq model
+            # in Streamlit Secrets as GROQ_MODEL.
+            model = get_secret("GROQ_MODEL")
+
+            if not model:
+                raise RuntimeError(
+                    "GROQ_MODEL is not configured in Streamlit Secrets."
+                )
+
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are PaperCraft AI, a helpful document "
+                            "assistant. Give accurate, concise answers."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.2
+            )
+
+            result = response.choices[0].message.content
+
+            if result:
+                return result.strip(), "Groq"
+
+            errors.append("Groq returned an empty response.")
+
+        except Exception as e:
+            errors.append(
+                f"Groq: {type(e).__name__}: {str(e)[:500]}"
+            )
+
+    # =========================================================
+    # NO PROVIDER WORKED
+    # =========================================================
+    if not gemini_key and not groq_key:
+        raise RuntimeError(
+            "No AI API key is configured. "
+            "Add GEMINI_API_KEY and/or GROQ_API_KEY "
+            "in Streamlit Secrets."
+        )
+
+    raise RuntimeError(
+        "No AI provider succeeded. " + " | ".join(errors)
+    )
 
 
 def chat_with_pdf_ui():
