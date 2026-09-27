@@ -6,7 +6,7 @@ st.set_page_config(
     layout="wide",
 )
 
-from tools import organize, optimize, convert, edit, security, ai_tools
+from tools import organize, optimize, convert, edit, security, ai_tools, advanced
 
 # ---------------------------------------------------------------------------
 # Theme: Indigo + Teal (unique from iLovePDF's red, close to popular SaaS UIs)
@@ -130,6 +130,7 @@ CATEGORY_COLORS = {
     "Convert PDF": "#F59E0B",
     "Edit PDF": "#EC4899",
     "PDF Security": "#3B82F6",
+    "Batch Tools": "#0EA5E9",
     "AI Intelligence": "#8B5CF6",
 }
 
@@ -147,6 +148,8 @@ TOOLS = {
                               "Pull out just the pages you need into a brand-new PDF."),
             "Reorder Pages": ("🔀", organize.reorder_pages_ui,
                               "Rearrange your PDF's pages into any order you like."),
+            "Visual Page Manager": ("🖼️", advanced.visual_page_manager_ui,
+                                    "See every page as a thumbnail — remove or reorder with clicks, no typing."),
         },
     },
     "Optimize PDF": {
@@ -185,6 +188,16 @@ TOOLS = {
         "items": {
             "Protect PDF": ("🔐", security.protect_pdf_ui, "Encrypt your PDF with a password to prevent unauthorized access."),
             "Unlock PDF": ("🔓", security.unlock_pdf_ui, "Remove password security so you're free to use your PDF as you want."),
+            "Auto-Redact PDF": ("🕵️", advanced.redact_pdf_ui,
+                                "Auto-detect emails, phone numbers, CNIC and card numbers, and black them out."),
+        },
+    },
+    "Batch Tools": {
+        "icon": "⚙️",
+        "badge": "New",
+        "items": {
+            "Batch Processor": ("📦", advanced.batch_processor_ui,
+                                "Run one operation (compress, watermark, rotate, page numbers) on many PDFs at once."),
         },
     },
     "AI Intelligence": {
@@ -195,6 +208,8 @@ TOOLS = {
             "PDF to Markdown": ("📋", ai_tools.pdf_to_markdown_ui, "Turn PDFs into clean Markdown — perfect for notes and docs."),
             "Ask Your PDF": ("💬", ai_tools.chat_with_pdf_ui, "Chat with your document and get instant, grounded answers."),
             "Smart Data Extractor": ("🎯", ai_tools.smart_extractor_ui, "Pull structured fields from invoices and forms into JSON."),
+            "Compare PDFs (AI)": ("🔍", ai_tools.compare_pdf_ui, "AI explains, in plain language, what actually changed between two versions."),
+            "Translate PDF": ("🌐", ai_tools.translate_pdf_ui, "Translate a PDF's text — including Urdu and Roman Urdu."),
         },
     },
 }
