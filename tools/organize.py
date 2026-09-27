@@ -4,11 +4,11 @@ import io
 
 
 def merge_pdf_ui():
-    st.write("Multiple PDFs ko ek order me combine karo.")
-    files = st.file_uploader("PDFs upload karo", type="pdf", accept_multiple_files=True)
+    st.write("Combine multiple PDFs in the order you want.")
+    files = st.file_uploader("Upload PDFs", type="pdf", accept_multiple_files=True)
     if files and len(files) >= 2:
         order = st.multiselect(
-            "Order set karo (jis sequence me select karoge, wahi final order hoga)",
+            "Set the order (the sequence you select here will be the final order)",
             options=[f.name for f in files],
             default=[f.name for f in files],
         )
@@ -24,12 +24,12 @@ def merge_pdf_ui():
             st.success(f"Merged {len(order)} files successfully!")
             st.download_button("Download merged.pdf", buf.getvalue(), "merged.pdf", "application/pdf")
     elif files:
-        st.info("Kam se kam 2 files upload karo merge karne ke liye.")
+        st.info("Upload at least 2 files to merge.")
 
 
 def split_pdf_ui():
-    st.write("Ek PDF ko multiple files me split karo (har page alag file).")
-    file = st.file_uploader("PDF upload karo", type="pdf")
+    st.write("Split a PDF into multiple files (each page becomes a separate file).")
+    file = st.file_uploader("Upload PDF", type="pdf")
     if file:
         reader = PdfReader(file)
         total = len(reader.pages)
@@ -64,13 +64,13 @@ def _parse_page_ranges(text, total):
 
 
 def remove_pages_ui():
-    st.write("Specific pages PDF se remove karo.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="remove")
+    st.write("Remove specific pages from a PDF.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="remove")
     if file:
         reader = PdfReader(file)
         total = len(reader.pages)
         st.caption(f"Total pages: {total}")
-        ranges = st.text_input("Pages remove karne ke liye (e.g. 2,4-6)")
+        ranges = st.text_input("Pages to remove (e.g. 2,4-6)")
         if st.button("Remove Pages") and ranges:
             remove_set = set(_parse_page_ranges(ranges, total))
             writer = PdfWriter()
@@ -84,13 +84,13 @@ def remove_pages_ui():
 
 
 def extract_pages_ui():
-    st.write("Specific pages nikaal ke naya PDF banao.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="extract")
+    st.write("Extract specific pages into a brand-new PDF.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="extract")
     if file:
         reader = PdfReader(file)
         total = len(reader.pages)
         st.caption(f"Total pages: {total}")
-        ranges = st.text_input("Pages extract karne ke liye (e.g. 1-3,5)")
+        ranges = st.text_input("Pages to extract (e.g. 1-3,5)")
         if st.button("Extract Pages") and ranges:
             keep = _parse_page_ranges(ranges, total)
             writer = PdfWriter()
@@ -103,12 +103,12 @@ def extract_pages_ui():
 
 
 def reorder_pages_ui():
-    st.write("Pages ka order badlo (drag order neeche list me type karo).")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="reorder")
+    st.write("Change the order of your PDF's pages.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="reorder")
     if file:
         reader = PdfReader(file)
         total = len(reader.pages)
-        st.caption(f"Total pages: {total}. New order comma-separated do (e.g. 3,1,2,4)")
+        st.caption(f"Total pages: {total}. Enter the new order, comma-separated (e.g. 3,1,2,4)")
         order_text = st.text_input("New order", value=",".join(str(i + 1) for i in range(total)))
         if st.button("Reorder"):
             new_order = [int(x.strip()) - 1 for x in order_text.split(",") if x.strip()]
