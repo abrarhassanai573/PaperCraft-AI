@@ -85,9 +85,9 @@ def generate(prompt: str, max_tokens: int = 1500) -> str:
         except Exception as e:
             errors.append(f"{name}: {e}")
     raise RuntimeError(
-        "Dono AI providers fail ho gaye:\n" + "\n".join(errors) +
-        "\n\nCheck: secrets.toml me GEMINI_API_KEY / GROQ_API_KEY sahi hain? "
-        "Free tier quota to khatam nahi hui?"
+        "Both AI providers failed:\n" + "\n".join(errors) +
+        "\n\nCheck: are GEMINI_API_KEY / GROQ_API_KEY set correctly in secrets.toml? "
+        "Has the free tier quota run out?"
     )
 
 
