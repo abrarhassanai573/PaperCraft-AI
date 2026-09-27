@@ -25,9 +25,8 @@ def _extract_text_with_pages(file_bytes):
 def _require_key():
     if not ai_client.has_any_key():
         st.warning(
-            "AI features ke liye API key chahiye. `.streamlit/secrets.toml` me "
-            "`GEMINI_API_KEY` ya `GROQ_API_KEY` (dono add karo to fallback bhi milega) "
-            "— README dekho."
+            "AI features need an API key. Add `GEMINI_API_KEY` and/or `GROQ_API_KEY` "
+            "(add both to get automatic fallback) in `.streamlit/secrets.toml` — see the README."
         )
         return False
     return True
@@ -42,8 +41,8 @@ def _safe_generate(prompt, max_tokens=1500):
 
 
 def summarizer_ui():
-    st.write("PDF ka AI-powered concise summary generate karo.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="sum")
+    st.write("Generate an AI-powered, concise summary of your PDF.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="sum")
     length = st.select_slider("Summary length", ["Short", "Medium", "Detailed"], value="Medium")
     if file and st.button("Summarize"):
         if not _require_key():
@@ -61,8 +60,8 @@ def summarizer_ui():
 
 
 def pdf_to_markdown_ui():
-    st.write("PDF ko clean Markdown me convert karo (headings, tables, lists preserved).")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="md")
+    st.write("Convert a PDF into clean Markdown (headings, tables, and lists preserved).")
+    file = st.file_uploader("Upload PDF", type="pdf", key="md")
     if file and st.button("Convert to Markdown"):
         if not _require_key():
             return
@@ -79,8 +78,8 @@ def pdf_to_markdown_ui():
 
 
 def chat_with_pdf_ui():
-    st.write("PDF upload karo aur us se related sawal poocho — jawab jis page se aaya hoga, wo bhi bataya jayega.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="chat")
+    st.write("Upload a PDF and ask questions about it — answers will reference the page they came from.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="chat")
     if file:
         if "chat_pdf_text" not in st.session_state or st.session_state.get("chat_pdf_name") != file.name:
             st.session_state.chat_pdf_text = _extract_text_with_pages(file.getvalue())[:60000]
@@ -90,13 +89,13 @@ def chat_with_pdf_ui():
         for role, msg in st.session_state.get("chat_history", []):
             st.chat_message(role).write(msg)
 
-        question = st.chat_input("Apna sawal likho...")
+        question = st.chat_input("Type your question...")
         if question:
             if not _require_key():
                 return
             st.session_state.chat_history.append(("user", question))
             st.chat_message("user").write(question)
-            with st.spinner("Sochte huye..."):
+            with st.spinner("Thinking..."):
                 answer = _safe_generate(
                     f"Document (each section is tagged [Page N]):\n{st.session_state.chat_pdf_text}\n\n"
                     f"Question: {question}\n"
@@ -110,9 +109,10 @@ def chat_with_pdf_ui():
 
 
 def smart_extractor_ui():
-    st.write("Invoice/Form/CNIC jaisi PDFs se structured data nikaal ke JSON me do.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="extract_ai")
-    fields = st.text_input("Kaunse fields chahiye (comma separated)", value="name, date, total amount, invoice number")
+    st.write("Extract structured data from invoices, forms, or ID documents as JSON.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="extract_ai")
+    fields = st.text_input("Which fields do you need? (comma separated)",
+                            value="name, date, total amount, invoice number")
     if file and st.button("Extract Data"):
         if not _require_key():
             return
@@ -128,17 +128,17 @@ def smart_extractor_ui():
 
 
 def compare_pdf_ui():
-    st.write("Do PDF versions upload karo, AI plain language me bata dega ke asal mein kya badla hai.")
+    st.write("Upload two PDF versions and AI will explain, in plain language, what actually changed.")
     col1, col2 = st.columns(2)
     with col1:
-        file_a = st.file_uploader("Pehli PDF (purani version)", type="pdf", key="cmp_a")
+        file_a = st.file_uploader("First PDF (older version)", type="pdf", key="cmp_a")
     with col2:
-        file_b = st.file_uploader("Doosri PDF (nayi version)", type="pdf", key="cmp_b")
+        file_b = st.file_uploader("Second PDF (newer version)", type="pdf", key="cmp_b")
 
     if file_a and file_b and st.button("Compare"):
         if not _require_key():
             return
-        with st.spinner("Dono documents parh rahe hain..."):
+        with st.spinner("Reading both documents..."):
             text_a = _extract_text(file_a.getvalue())[:25000]
             text_b = _extract_text(file_b.getvalue())[:25000]
             result = _safe_generate(
@@ -154,17 +154,17 @@ def compare_pdf_ui():
 
 
 def translate_pdf_ui():
-    st.write("PDF ka text kisi bhi language me translate karo (Urdu, Roman Urdu, English, Arabic, etc).")
-    st.caption("Scanned/image-only Urdu PDF hai? Pehle **OCR PDF** tool chalao (language: Urdu ya eng+urd), "
-               "phir us output ko yahan upload karo.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="translate")
+    st.write("Translate a PDF's text into any language (Urdu, Roman Urdu, English, Arabic, etc.).")
+    st.caption("Have a scanned/image-only Urdu PDF? Run the **OCR PDF** tool first "
+               "(language: Urdu or eng+urd), then upload that output here.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="translate")
     target = st.selectbox(
         "Target language",
         ["Urdu", "Roman Urdu (Urdu written in English letters)", "English", "Arabic", "Punjabi", "Other (type below)"],
     )
     custom_lang = ""
     if target == "Other (type below)":
-        custom_lang = st.text_input("Language likho")
+        custom_lang = st.text_input("Type a language")
     if file and st.button("Translate"):
         if not _require_key():
             return
