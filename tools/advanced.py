@@ -12,9 +12,9 @@ import zipfile
 # (replaces "type page ranges" with an actual visual picker)
 # ---------------------------------------------------------------------------
 def visual_page_manager_ui():
-    st.write("PDF ke pages ko thumbnail images ki shakal mein dekho — koi typing nahi, "
-             "bas uncheck karke hatao ya position number badal ke reorder karo.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="vpm")
+    st.write("View your PDF's pages as thumbnails — no typing needed. Just uncheck a page to "
+             "remove it, or change its position number to reorder.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="vpm")
     if not file:
         return
 
@@ -22,7 +22,7 @@ def visual_page_manager_ui():
     file_bytes = file.getvalue()
 
     if "vpm_pages" not in st.session_state or st.session_state.get("vpm_name") != file.name:
-        with st.spinner("Thumbnails bana rahe hain..."):
+        with st.spinner("Generating thumbnails..."):
             st.session_state.vpm_pages = convert_from_bytes(file_bytes, dpi=55)
             st.session_state.vpm_name = file.name
         total = len(st.session_state.vpm_pages)
@@ -71,17 +71,18 @@ PII_PATTERNS = {
 
 
 def redact_pdf_ui():
-    st.write("PDF mein se emails, phone numbers, CNIC aur card numbers khud dhoondo aur black box laga do.")
+    st.write("Automatically find emails, phone numbers, CNIC numbers, and card numbers in a PDF "
+              "and black them out.")
     st.info(
         "⚠️ Important: by default this only draws a black box **over** the text — the original "
         "text underneath can still technically be extracted by someone determined. Check "
-        "**'Flatten to image'** below for genuine, non-recoverable redaction (page becomes a "
-        "picture, no text layer left at all)."
+        "**'Flatten to image'** below for genuine, non-recoverable redaction (the page becomes a "
+        "picture, with no text layer left at all)."
     )
-    file = st.file_uploader("PDF upload karo", type="pdf", key="redact")
-    selected_types = st.multiselect("Kaunsi info redact karni hai?", list(PII_PATTERNS.keys()),
+    file = st.file_uploader("Upload PDF", type="pdf", key="redact")
+    selected_types = st.multiselect("Which info should be redacted?", list(PII_PATTERNS.keys()),
                                      default=list(PII_PATTERNS.keys()))
-    extra_words = st.text_input("Extra names/words bhi redact karne hain? (comma separated, optional)")
+    extra_words = st.text_input("Extra names/words to redact too? (comma separated, optional)")
     flatten = st.checkbox("Flatten to image (recommended — removes underlying text completely)", value=True)
 
     if file and st.button("Auto-Redact"):
@@ -139,9 +140,9 @@ def redact_pdf_ui():
                 result_bytes = img2pdf.convert(img_bytes_list)
 
         if total_hits == 0:
-            st.warning("Koi matching sensitive info nahi mili. (Scanned/image-only PDFs ke liye pehle OCR PDF chalao.)")
+            st.warning("No matching sensitive info was found. (For scanned/image-only PDFs, run OCR PDF first.)")
         else:
-            st.success(f"{total_hits} item(s) redact ho gaye!")
+            st.success(f"{total_hits} item(s) redacted!")
         st.download_button("Download redacted.pdf", result_bytes, "redacted.pdf", "application/pdf")
 
 
@@ -208,9 +209,9 @@ def _run_single(operation, file_bytes, params):
 
 
 def batch_processor_ui():
-    st.write("Ek hi operation multiple PDFs par apply karo — sab ka ZIP download mil jayega.")
-    files = st.file_uploader("PDFs upload karo", type="pdf", accept_multiple_files=True, key="batch")
-    operation = st.selectbox("Operation choose karo", ["Compress", "Add Watermark", "Rotate", "Add Page Numbers"])
+    st.write("Apply one operation to multiple PDFs at once — download all the results as a ZIP.")
+    files = st.file_uploader("Upload PDFs", type="pdf", accept_multiple_files=True, key="batch")
+    operation = st.selectbox("Choose an operation", ["Compress", "Add Watermark", "Rotate", "Add Page Numbers"])
 
     params = {}
     if operation == "Compress":
@@ -237,6 +238,6 @@ def batch_processor_ui():
                 progress.progress((i + 1) / len(files))
 
         if errors:
-            st.error("Kuch files fail ho gayeen:\n" + "\n".join(errors))
+            st.error("Some files failed:\n" + "\n".join(errors))
         st.success(f"{len(files) - len(errors)} file(s) processed!")
         st.download_button("Download batch_results.zip", zip_buf.getvalue(), "batch_results.zip", "application/zip")
