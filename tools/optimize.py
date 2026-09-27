@@ -7,8 +7,8 @@ import os
 
 
 def compress_pdf_ui():
-    st.write("PDF ka size kam karo (images recompress + streams optimize).")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="compress")
+    st.write("Reduce your PDF's file size (recompresses images and optimizes streams).")
+    file = st.file_uploader("Upload PDF", type="pdf", key="compress")
     level = st.select_slider("Compression level", ["Low", "Medium", "High"], value="Medium")
     if file and st.button("Compress"):
         original_size = len(file.getvalue())
@@ -17,7 +17,6 @@ def compress_pdf_ui():
             in_path = tmp_in.name
         out_path = in_path.replace(".pdf", "_out.pdf")
 
-        quality_map = {"Low": 40, "Medium": 65, "High": 85}
         try:
             # Ghostscript gives the best compression when available on the server
             gs_quality = {"Low": "/screen", "Medium": "/ebook", "High": "/printer"}[level]
@@ -47,8 +46,8 @@ def compress_pdf_ui():
 
 
 def repair_pdf_ui():
-    st.write("Corrupt/damaged PDF ko repair/recover karne ki koshish karo.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="repair")
+    st.write("Try to repair or recover a corrupt or damaged PDF.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="repair")
     if file and st.button("Repair"):
         try:
             pdf = pikepdf.open(io.BytesIO(file.getvalue()))
@@ -57,18 +56,18 @@ def repair_pdf_ui():
             st.success("PDF repaired successfully!")
             st.download_button("Download repaired.pdf", buf.getvalue(), "repaired.pdf", "application/pdf")
         except Exception as e:
-            st.error(f"Repair fail ho gaya: {e}")
+            st.error(f"Repair failed: {e}")
 
 
 def ocr_pdf_ui():
-    st.write("Scanned PDF ko searchable/selectable text wale PDF me convert karo.")
-    file = st.file_uploader("PDF upload karo (scanned)", type="pdf", key="ocr")
+    st.write("Convert a scanned PDF into a searchable, selectable PDF.")
+    file = st.file_uploader("Upload PDF (scanned)", type="pdf", key="ocr")
     lang = st.selectbox("Language", ["eng", "urd", "eng+urd"], index=0)
     if file and st.button("Run OCR"):
         from pdf2image import convert_from_bytes
         import pytesseract
 
-        with st.spinner("OCR chal raha hai, thoda time lag sakta hai..."):
+        with st.spinner("Running OCR, this may take a moment..."):
             images = convert_from_bytes(file.getvalue())
             pdf_writer_bytes = []
             for img in images:
