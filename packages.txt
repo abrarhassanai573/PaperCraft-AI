@@ -1,5 +1,0 @@
-libreoffice
-tesseract-ocr
-poppler-utils
-qpdf
-ghostscript
