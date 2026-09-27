@@ -1,5 +1,6 @@
 libreoffice
 tesseract-ocr
+tesseract-ocr-urd
 poppler-utils
 qpdf
 ghostscript
