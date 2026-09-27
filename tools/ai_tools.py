@@ -13,6 +13,15 @@ def _extract_text(file_bytes):
     return "\n\n".join(text)
 
 
+def _extract_text_with_pages(file_bytes):
+    """Same as _extract_text but tags each page so the AI can cite where it found something."""
+    chunks = []
+    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        for i, page in enumerate(pdf.pages, start=1):
+            chunks.append(f"[Page {i}]\n{page.extract_text() or ''}")
+    return "\n\n".join(chunks)
+
+
 def _require_key():
     if not ai_client.has_any_key():
         st.warning(
@@ -70,11 +79,11 @@ def pdf_to_markdown_ui():
 
 
 def chat_with_pdf_ui():
-    st.write("PDF upload karo aur us se related sawal poocho.")
+    st.write("PDF upload karo aur us se related sawal poocho — jawab jis page se aaya hoga, wo bhi bataya jayega.")
     file = st.file_uploader("PDF upload karo", type="pdf", key="chat")
     if file:
         if "chat_pdf_text" not in st.session_state or st.session_state.get("chat_pdf_name") != file.name:
-            st.session_state.chat_pdf_text = _extract_text(file.getvalue())[:60000]
+            st.session_state.chat_pdf_text = _extract_text_with_pages(file.getvalue())[:60000]
             st.session_state.chat_pdf_name = file.name
             st.session_state.chat_history = []
 
@@ -89,8 +98,10 @@ def chat_with_pdf_ui():
             st.chat_message("user").write(question)
             with st.spinner("Sochte huye..."):
                 answer = _safe_generate(
-                    f"Document:\n{st.session_state.chat_pdf_text}\n\nQuestion: {question}\n"
-                    f"Answer based only on the document above.",
+                    f"Document (each section is tagged [Page N]):\n{st.session_state.chat_pdf_text}\n\n"
+                    f"Question: {question}\n"
+                    f"Answer based only on the document above. If your answer relies on a specific "
+                    f"part of the document, mention the page number in parentheses, e.g. (Page 3).",
                     max_tokens=800,
                 )
             if answer:
@@ -114,3 +125,58 @@ def smart_extractor_ui():
         if result:
             st.code(result, language="json")
             st.download_button("Download data.json", result, "data.json")
+
+
+def compare_pdf_ui():
+    st.write("Do PDF versions upload karo, AI plain language me bata dega ke asal mein kya badla hai.")
+    col1, col2 = st.columns(2)
+    with col1:
+        file_a = st.file_uploader("Pehli PDF (purani version)", type="pdf", key="cmp_a")
+    with col2:
+        file_b = st.file_uploader("Doosri PDF (nayi version)", type="pdf", key="cmp_b")
+
+    if file_a and file_b and st.button("Compare"):
+        if not _require_key():
+            return
+        with st.spinner("Dono documents parh rahe hain..."):
+            text_a = _extract_text(file_a.getvalue())[:25000]
+            text_b = _extract_text(file_b.getvalue())[:25000]
+            result = _safe_generate(
+                "Compare Document A and Document B below. List, in plain language and as bullet "
+                "points: (1) what was added, (2) what was removed, (3) what was changed/reworded. "
+                "Ignore trivial formatting differences and focus on meaningful content changes.\n\n"
+                f"--- Document A ---\n{text_a}\n\n--- Document B ---\n{text_b}",
+                max_tokens=1200,
+            )
+        if result:
+            st.markdown(result)
+            st.download_button("Download comparison.txt", result, "comparison.txt")
+
+
+def translate_pdf_ui():
+    st.write("PDF ka text kisi bhi language me translate karo (Urdu, Roman Urdu, English, Arabic, etc).")
+    st.caption("Scanned/image-only Urdu PDF hai? Pehle **OCR PDF** tool chalao (language: Urdu ya eng+urd), "
+               "phir us output ko yahan upload karo.")
+    file = st.file_uploader("PDF upload karo", type="pdf", key="translate")
+    target = st.selectbox(
+        "Target language",
+        ["Urdu", "Roman Urdu (Urdu written in English letters)", "English", "Arabic", "Punjabi", "Other (type below)"],
+    )
+    custom_lang = ""
+    if target == "Other (type below)":
+        custom_lang = st.text_input("Language likho")
+    if file and st.button("Translate"):
+        if not _require_key():
+            return
+        lang = custom_lang if target == "Other (type below)" else target
+        with st.spinner("Translating..."):
+            text = _extract_text(file.getvalue())[:40000]
+            result = _safe_generate(
+                f"Translate the following document into {lang}. Keep the meaning accurate and the "
+                f"structure (headings, lists, paragraphs) as close to the original as possible. "
+                f"Return only the translated text:\n\n{text}",
+                max_tokens=4000,
+            )
+        if result:
+            st.markdown(result)
+            st.download_button("Download translated.txt", result, "translated.txt")
