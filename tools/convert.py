@@ -7,8 +7,8 @@ import zipfile
 
 
 def pdf_to_jpg_ui():
-    st.write("Har PDF page ko JPG image me convert karo.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="p2j")
+    st.write("Convert each PDF page into a JPG image.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="p2j")
     if file and st.button("Convert to JPG"):
         from pdf2image import convert_from_bytes
         images = convert_from_bytes(file.getvalue())
@@ -23,8 +23,8 @@ def pdf_to_jpg_ui():
 
 
 def jpg_to_pdf_ui():
-    st.write("Ek ya multiple JPG/PNG images ko ek PDF me combine karo.")
-    files = st.file_uploader("Images upload karo", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="j2p")
+    st.write("Combine one or more JPG/PNG images into a single PDF.")
+    files = st.file_uploader("Upload images", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="j2p")
     if files and st.button("Convert to PDF"):
         import img2pdf
         image_bytes = [f.getvalue() for f in files]
@@ -34,22 +34,25 @@ def jpg_to_pdf_ui():
 
 
 def pdf_to_word_ui():
-    st.write("PDF ko editable Word (.docx) me convert karo.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="p2w")
+    st.write("Convert a PDF into an editable Word (.docx) document.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="p2w")
     if file and st.button("Convert to Word"):
         from pdf2docx import Converter
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_in:
             tmp_in.write(file.getvalue())
             in_path = tmp_in.name
         out_path = in_path.replace(".pdf", ".docx")
-        with st.spinner("Converting..."):
-            cv = Converter(in_path)
-            cv.convert(out_path)
-            cv.close()
-        with open(out_path, "rb") as f:
-            result = f.read()
-        os.remove(in_path)
-        os.remove(out_path)
+        try:
+            with st.spinner("Converting..."):
+                cv = Converter(in_path)
+                cv.convert(out_path)
+                cv.close()
+            with open(out_path, "rb") as f:
+                result = f.read()
+        finally:
+            for p in (in_path, out_path):
+                if os.path.exists(p):
+                    os.remove(p)
         st.success("Converted to Word!")
         st.download_button("Download converted.docx", result,
                             "converted.docx",
@@ -71,8 +74,8 @@ def _soffice_convert_to_pdf(file, suffix):
 
 
 def word_to_pdf_ui():
-    st.write("Word (.docx) ko PDF me convert karo.")
-    file = st.file_uploader("Word file upload karo", type=["docx", "doc"], key="w2p")
+    st.write("Convert a Word (.docx) document into a PDF.")
+    file = st.file_uploader("Upload Word file", type=["docx", "doc"], key="w2p")
     if file and st.button("Convert to PDF"):
         with st.spinner("Converting..."):
             result = _soffice_convert_to_pdf(file, os.path.splitext(file.name)[1])
@@ -81,8 +84,8 @@ def word_to_pdf_ui():
 
 
 def excel_to_pdf_ui():
-    st.write("Excel (.xlsx) ko PDF me convert karo.")
-    file = st.file_uploader("Excel file upload karo", type=["xlsx", "xls"], key="e2p")
+    st.write("Convert an Excel (.xlsx) file into a PDF.")
+    file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"], key="e2p")
     if file and st.button("Convert to PDF"):
         with st.spinner("Converting..."):
             result = _soffice_convert_to_pdf(file, os.path.splitext(file.name)[1])
@@ -91,8 +94,8 @@ def excel_to_pdf_ui():
 
 
 def ppt_to_pdf_ui():
-    st.write("PowerPoint (.pptx) ko PDF me convert karo.")
-    file = st.file_uploader("PowerPoint file upload karo", type=["pptx", "ppt"], key="pp2p")
+    st.write("Convert a PowerPoint (.pptx) file into a PDF.")
+    file = st.file_uploader("Upload PowerPoint file", type=["pptx", "ppt"], key="pp2p")
     if file and st.button("Convert to PDF"):
         with st.spinner("Converting..."):
             result = _soffice_convert_to_pdf(file, os.path.splitext(file.name)[1])
@@ -101,8 +104,8 @@ def ppt_to_pdf_ui():
 
 
 def pdf_to_excel_ui():
-    st.write("PDF ke andar tables detect karke Excel me nikalo.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="p2e")
+    st.write("Detect tables inside a PDF and extract them into Excel.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="p2e")
     if file and st.button("Extract Tables to Excel"):
         import pdfplumber
         import openpyxl
@@ -119,7 +122,7 @@ def pdf_to_excel_ui():
                     for row in table:
                         ws.append([cell if cell is not None else "" for cell in row])
         if found == 0:
-            st.warning("Is PDF me koi table detect nahi hui.")
+            st.warning("No tables were detected in this PDF.")
         else:
             buf = io.BytesIO()
             wb.save(buf)
