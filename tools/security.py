@@ -4,9 +4,9 @@ import io
 
 
 def protect_pdf_ui():
-    st.write("PDF par password laga ke encrypt karo.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="protect")
-    password = st.text_input("Password set karo", type="password")
+    st.write("Encrypt your PDF with a password.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="protect")
+    password = st.text_input("Set a password", type="password")
     if file and password and st.button("Protect"):
         reader = PdfReader(file)
         writer = PdfWriter()
@@ -20,15 +20,15 @@ def protect_pdf_ui():
 
 
 def unlock_pdf_ui():
-    st.write("Password-protected PDF se password remove karo.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="unlock")
-    password = st.text_input("Current password daalo", type="password")
+    st.write("Remove the password from a protected PDF.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="unlock")
+    password = st.text_input("Enter current password", type="password")
     if file and st.button("Unlock"):
         reader = PdfReader(file)
         if reader.is_encrypted:
             result = reader.decrypt(password)
             if result == 0:
-                st.error("Galat password!")
+                st.error("Incorrect password!")
                 return
         writer = PdfWriter()
         for page in reader.pages:
