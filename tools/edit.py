@@ -6,8 +6,8 @@ import io
 
 
 def rotate_pdf_ui():
-    st.write("PDF pages rotate karo.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="rotate")
+    st.write("Rotate PDF pages.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="rotate")
     angle = st.selectbox("Rotation angle", [90, 180, 270])
     if file and st.button("Rotate"):
         reader = PdfReader(file)
@@ -22,8 +22,8 @@ def rotate_pdf_ui():
 
 
 def watermark_ui():
-    st.write("PDF par text watermark lagao.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="wm")
+    st.write("Add a text watermark to your PDF.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="wm")
     text = st.text_input("Watermark text", value="CONFIDENTIAL")
     opacity = st.slider("Opacity", 0.1, 1.0, 0.3)
     if file and st.button("Add Watermark"):
@@ -55,8 +55,8 @@ def watermark_ui():
 
 
 def page_numbers_ui():
-    st.write("PDF me page numbers add karo.")
-    file = st.file_uploader("PDF upload karo", type="pdf", key="pn")
+    st.write("Add page numbers to your PDF.")
+    file = st.file_uploader("Upload PDF", type="pdf", key="pn")
     position = st.selectbox("Position", ["Bottom Center", "Bottom Right", "Bottom Left"])
     if file and st.button("Add Page Numbers"):
         reader = PdfReader(file)
